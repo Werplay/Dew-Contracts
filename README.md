@@ -10,4 +10,4 @@
 
 ### To Deploy
 
-- npm run deploy:test:jambro
+- npm run deploy:test:wrp
