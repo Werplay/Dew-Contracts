@@ -1,14 +1,49 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
-import "./WeRplay.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+
+interface IERC20 {
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
+
+    function totalSupply() external view returns (uint256);
+
+    function balanceOf(address account) external view returns (uint256);
+
+    function transfer(address to, uint256 amount) external returns (bool);
+
+    function mint(address to, uint256 amount) external;
+
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (uint256);
+
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) external returns (bool);
+}
 
 /**
-@title WeRplaySale NFT Contract
+@title WeRplaySale Vote Contract
 @author github.com/mueed98
-@notice This upgradeable Contract is for sale of WeRplay Tokens
+@notice This upgradeable Contract is for vote
 */
 contract wrpSale is
     Initializable,
@@ -17,34 +52,41 @@ contract wrpSale is
     AccessControlUpgradeable,
     UUPSUpgradeable
 {
-    event ForSale(address indexed from, uint256 indexed tokenId, uint256 price);
-    event Bought(
-        address indexed from,
-        address indexed to,
-        uint256 indexed tokenId,
-        uint256 price
-    );
-
+    event CohortSetup(uint256 id, string name, address admin);
+    event ProposalSetup(address from, uint256 proposalId);
+    using MerkleProof for bytes32[];
     using CountersUpgradeable for CountersUpgradeable.Counter;
 
-    CountersUpgradeable.Counter private _cohortCounter;
+    CountersUpgradeable.Counter private cohortCounter;
+    CountersUpgradeable.Counter private proposalCounter;
 
-    uint256 private saleStartTime;
-    WeRplay public tokenContract;
+    IERC20 public tokenContract;
+    bytes32 public constant TECH_ADMIN = keccak256("TECH_ADMIN");
+    bytes32 public constant TOKEN_ADMIN = keccak256("TOKEN_ADMIN");
 
     struct cohort {
         string name;
         address admin;
+        bytes32 merkleRoot;
         bool exists;
     }
 
-    mapping(uint256 => cohort) cohortMap;
-    mapping(uint256 => mapping(address => bool)) cohortMemberList;
-
-    modifier saleIsActive() {
-        require(saleActive(), "Sale is not Active");
-        _;
+    struct proposal {
+        string objective;
+        address proposedBy;
+        uint256 proposalTime;
+        uint256 votingTime;
+        bool exists;
     }
+
+    mapping(uint256 => mapping(uint256 => bool)) proposalVotingMap;
+    mapping(uint256 => proposal) public proposalMap;
+
+    mapping(uint256 => cohort) public cohortMap;
+
+    mapping(uint256 => bool) private changeTokenAdminMap;
+    mapping(uint256 => bool) private changeTechAdminMap;
+
     modifier onlyCohortAdmin(uint256 _id, address _admin) {
         require(cohortMap[_id].admin == _admin, "Not Cohort Admin");
         _;
@@ -53,7 +95,7 @@ contract wrpSale is
     function initialize(
         address admin,
         uint256 _saleStartTime,
-        WeRplay _tokenContract
+        IERC20 _tokenContract
     ) public initializer {
         require(
             _saleStartTime >= block.timestamp,
@@ -65,14 +107,15 @@ contract wrpSale is
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(TECH_ADMIN, admin);
+        _grantRole(TOKEN_ADMIN, admin);
 
-        saleStartTime = _saleStartTime;
         tokenContract = _tokenContract;
     }
 
     //==================  External Functions    ==================//
 
-    function withdraw(address reciever) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function withdraw(address reciever) external onlyRole(TECH_ADMIN) {
         AddressUpgradeable.sendValue(payable(reciever), address(this).balance);
     }
 
@@ -82,7 +125,7 @@ contract wrpSale is
     @notice pauses all transfer functionality of contract
     @dev can only be called by Default Admin
     */
-    function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function pause() public onlyRole(TECH_ADMIN) {
         _pause();
     }
 
@@ -90,36 +133,136 @@ contract wrpSale is
     @notice unpauses all transfer functionality of contract
     @dev can only be called by Default Admin
     */
-    function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function unpause() public onlyRole(TECH_ADMIN) {
         _unpause();
+    }
+
+    function mintTokens(
+        address _to,
+        uint256 _amount
+    ) public onlyRole(TOKEN_ADMIN) {
+        tokenContract.mint(_to, _amount);
     }
 
     function setupCohort(
         uint256 _id,
         string memory _name,
         address _admin
-    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) public onlyRole(TECH_ADMIN) {
+        require(_id <= cohortCounter.current(), "Cohort Id not valid");
         if (cohortMap[_id].exists == false) {
             cohortMap[_id].exists = true;
-            _cohortCounter.increment();
+            cohortCounter.increment();
+        } else {
+            revert("Cohort Already set");
         }
+
         cohortMap[_id].name = _name;
         cohortMap[_id].admin = _admin;
+        emit CohortSetup(_id, _name, _admin);
     }
 
     function setMembersOfCohort(
-        uint256 cohortId,
-        address[] memory addresses
-    ) public onlyCohortAdmin(cohortId, msg.sender) {
-        for (uint256 i = 0; i < addresses.length; i++) {
-            cohortMemberList[cohortId][addresses[i]] = true;
+        uint256 _cohortId,
+        bytes32 _merkleRoot
+    ) public onlyCohortAdmin(_cohortId, msg.sender) {
+        cohortMap[_cohortId].merkleRoot = _merkleRoot;
+    }
+
+    function makeProposal(
+        uint256 _cohortId,
+        string memory _objective,
+        uint256 _votingTime
+    ) public onlyCohortAdmin(_cohortId, msg.sender) {
+        require(_votingTime > 0, "Voting Time cannot be zero");
+        uint256 proposalCount = proposalCounter.current();
+        proposalCounter.increment();
+        proposalMap[proposalCount] = proposal({
+            objective: _objective,
+            proposedBy: msg.sender,
+            proposalTime: block.timestamp,
+            votingTime: _votingTime,
+            exists: true
+        });
+
+        emit ProposalSetup(msg.sender, proposalCount);
+    }
+
+    function changeTokenAdmin(
+        address _newTokenAdmin,
+        address _currentTokenAdmin,
+        uint256 _cohortId
+    ) public onlyCohortAdmin(_cohortId, msg.sender) {
+        changeTokenAdminMap[_cohortId] = true;
+        uint256 votes = 0;
+        for (uint256 i = 0; i < totalCohorts(); i++) {
+            if (changeTokenAdminMap[_cohortId] == true) {
+                votes += 1;
+            }
+        }
+
+        uint256 halfCohortCount;
+
+        if (totalCohorts() % 2 == 0) {
+            halfCohortCount = totalCohorts() / 2;
+        } else {
+            halfCohortCount = (totalCohorts() / 2) + 1;
+        }
+
+        if (votes >= halfCohortCount) {
+            _deleteChangeTokenAdminMap();
+            _revokeRole(TOKEN_ADMIN, _currentTokenAdmin);
+            _grantRole(TOKEN_ADMIN, _newTokenAdmin);
         }
     }
 
-    //==================  Public Functions    ==================//
+    function vote(
+        uint256 _proposalId,
+        uint256 _cohortId
+    ) public onlyCohortAdmin(_cohortId, msg.sender) {
+        require(
+            proposalMap[_proposalId].votingTime +
+                proposalMap[_proposalId].proposalTime >
+                block.timestamp,
+            "Voting Not Active"
+        );
+        proposalVotingMap[_proposalId][_cohortId] = true;
+    }
 
-    function saleActive() public view returns (bool) {
-        return (block.timestamp >= saleStartTime);
+    //==================  Read Functions    ==================//
+
+    function resultOfProposal(
+        uint256 _proposalId
+    ) public view returns (uint256) {
+        require(
+            proposalMap[_proposalId].votingTime +
+                proposalMap[_proposalId].proposalTime <
+                block.timestamp,
+            "Voting Still Active"
+        );
+        uint256 votes = 0;
+        for (uint256 i = 0; i < totalCohorts(); i++) {
+            if (proposalVotingMap[_proposalId][i] == true) votes += 1;
+        }
+
+        return votes;
+    }
+
+    function totalCohorts() public view returns (uint256) {
+        return cohortCounter.current();
+    }
+
+    function totalProposals() public view returns (uint256) {
+        return proposalCounter.current();
+    }
+
+    function isMember(
+        address _address,
+        uint256 _cohortId,
+        bytes32[] memory proof
+    ) public view returns (bool) {
+        bytes32 leaf = keccak256(abi.encodePacked(_address));
+        return MerkleProof.verify(proof, cohortMap[_cohortId].merkleRoot, leaf);
     }
 
     /**     
@@ -132,6 +275,18 @@ contract wrpSale is
     }
 
     //==================  Internal Functions    ==================//
+
+    function _deleteChangeTokenAdminMap() internal {
+        for (uint256 i = 0; i < totalCohorts(); i++) {
+            delete changeTokenAdminMap[i];
+        }
+    }
+
+    function _deleteChangeTechAdminMap() internal {
+        for (uint256 i = 0; i < totalCohorts(); i++) {
+            delete changeTechAdminMap[i];
+        }
+    }
 
     /**     
     @notice override needed by UUPS proxy
