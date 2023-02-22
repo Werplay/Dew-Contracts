@@ -85,12 +85,15 @@ contract wrpVote is
         bool exists;
     }
 
-    mapping(uint256 => mapping(uint256 => bool)) proposalVotingMap;
+    mapping(uint256 => mapping(uint256 => bool)) public proposalVotingMap;
+
     mapping(uint256 => proposal) public proposalMap;
 
     mapping(uint256 => cohort) public cohortMap;
 
-    mapping(uint256 => bool) private changeDefaultAdminMap;
+    mapping(address => mapping(uint256 => bool)) public changeDefaultAdminMap;
+    mapping(uint256 => mapping(address => mapping(uint256 => bool)))
+        public changeCohortAdminMap;
 
     modifier onlyCohortAdmin(uint256 _id, address _admin) {
         require(cohortMap[_id].admin == _admin, "Not Cohort Admin");
@@ -208,27 +211,46 @@ contract wrpVote is
         address _newAdmin,
         uint256 _cohortId
     ) public onlyCohortAdmin(_cohortId, msg.sender) {
-        changeDefaultAdminMap[_cohortId] = true;
+        changeDefaultAdminMap[_newAdmin][_cohortId] = true;
         uint256 votes = 0;
         for (uint256 i = 0; i < totalCohorts(); i++) {
-            if (changeDefaultAdminMap[_cohortId] == true) {
+            if (changeDefaultAdminMap[_newAdmin][i] == true) {
                 votes += 1;
             }
         }
 
-        uint256 halfCohortCount;
-
-        if (totalCohorts() % 2 == 0) {
-            halfCohortCount = totalCohorts() / 2;
-        } else {
-            halfCohortCount = (totalCohorts() / 2) + 1;
-        }
+        uint256 halfCohortCount = (totalCohorts() / 2) + 1;
 
         if (votes >= halfCohortCount) {
-            _deleteChangeDefaultAdminMap();
+            _deleteChangeDefaultAdminMap(_newAdmin);
             _revokeRole(DEFAULT_ADMIN_ROLE, currentAdmin);
             _grantRole(DEFAULT_ADMIN_ROLE, _newAdmin);
             currentAdmin = _newAdmin;
+        }
+    }
+
+    function changeCohortAdmin(
+        address _newAdmin,
+        uint256 _yourCohortId,
+        uint256 _targetCohortId
+    ) public onlyCohortAdmin(_yourCohortId, msg.sender) {
+        require(
+            cohortMap[_targetCohortId].admin != msg.sender,
+            "Current Admin of Cohort cannot vote"
+        );
+        changeCohortAdminMap[_targetCohortId][_newAdmin][_yourCohortId] = true;
+        uint256 votes = 0;
+        for (uint256 i = 0; i < totalCohorts(); i++) {
+            if (changeCohortAdminMap[_targetCohortId][_newAdmin][i] == true) {
+                votes += 1;
+            }
+        }
+
+        uint256 halfCohortCount = (totalCohorts() / 2) + 1;
+
+        if (votes >= halfCohortCount) {
+            _deleteChangeCohortAdminMap(_targetCohortId, _newAdmin);
+            cohortMap[_targetCohortId].admin = _newAdmin;
         }
     }
 
@@ -292,17 +314,20 @@ contract wrpVote is
 
     //==================  Internal Functions    ==================//
 
-    function _deleteChangeDefaultAdminMap() internal {
+    function _deleteChangeDefaultAdminMap(address _newAdmin) internal {
         for (uint256 i = 0; i < totalCohorts(); i++) {
-            delete changeDefaultAdminMap[i];
+            delete changeDefaultAdminMap[_newAdmin][i];
         }
     }
 
-    // function _deleteChangeTechAdminMap() internal {
-    //     for (uint256 i = 0; i < totalCohorts(); i++) {
-    //         delete changeTechAdminMap[i];
-    //     }
-    // }
+    function _deleteChangeCohortAdminMap(
+        uint256 _targetCohortId,
+        address _newAdmin
+    ) internal {
+        for (uint256 i = 0; i < totalCohorts(); i++) {
+            delete changeCohortAdminMap[_targetCohortId][_newAdmin][i];
+        }
+    }
 
     /**     
     @notice override needed by UUPS proxy
