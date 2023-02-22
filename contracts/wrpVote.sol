@@ -26,6 +26,10 @@ interface IERC20 {
 
     function mint(address to, uint256 amount) external;
 
+    function burn(address to, uint256 amount) external;
+
+    function blockTransfer(address _from, bool status) external;
+
     function allowance(
         address owner,
         address spender
@@ -45,7 +49,7 @@ interface IERC20 {
 @author github.com/mueed98
 @notice This upgradeable Contract is for vote
 */
-contract wrpSale is
+contract wrpVote is
     Initializable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
@@ -63,6 +67,8 @@ contract wrpSale is
     IERC20 public tokenContract;
     bytes32 public constant TECH_ADMIN = keccak256("TECH_ADMIN");
     bytes32 public constant TOKEN_ADMIN = keccak256("TOKEN_ADMIN");
+
+    address public currentAdmin;
 
     struct cohort {
         string name;
@@ -84,8 +90,7 @@ contract wrpSale is
 
     mapping(uint256 => cohort) public cohortMap;
 
-    mapping(uint256 => bool) private changeTokenAdminMap;
-    mapping(uint256 => bool) private changeTechAdminMap;
+    mapping(uint256 => bool) private changeDefaultAdminMap;
 
     modifier onlyCohortAdmin(uint256 _id, address _admin) {
         require(cohortMap[_id].admin == _admin, "Not Cohort Admin");
@@ -94,14 +99,8 @@ contract wrpSale is
 
     function initialize(
         address admin,
-        uint256 _saleStartTime,
         IERC20 _tokenContract
     ) public initializer {
-        require(
-            _saleStartTime >= block.timestamp,
-            "saleStartTime less than block time"
-        );
-
         __Pausable_init();
         __AccessControl_init();
         __UUPSUpgradeable_init();
@@ -109,6 +108,9 @@ contract wrpSale is
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(TECH_ADMIN, admin);
         _grantRole(TOKEN_ADMIN, admin);
+
+        _setRoleAdmin(TECH_ADMIN, DEFAULT_ADMIN_ROLE);
+        _setRoleAdmin(TOKEN_ADMIN, DEFAULT_ADMIN_ROLE);
 
         tokenContract = _tokenContract;
     }
@@ -142,6 +144,20 @@ contract wrpSale is
         uint256 _amount
     ) public onlyRole(TOKEN_ADMIN) {
         tokenContract.mint(_to, _amount);
+    }
+
+    function burnTokens(
+        address _to,
+        uint256 _amount
+    ) public onlyRole(TOKEN_ADMIN) {
+        tokenContract.burn(_to, _amount);
+    }
+
+    function blockTransfer(
+        address _from,
+        bool _status
+    ) public onlyRole(TOKEN_ADMIN) {
+        tokenContract.blockTransfer(_from, _status);
     }
 
     function setupCohort(
@@ -188,15 +204,14 @@ contract wrpSale is
         emit ProposalSetup(msg.sender, proposalCount);
     }
 
-    function changeTokenAdmin(
-        address _newTokenAdmin,
-        address _currentTokenAdmin,
+    function changeDefaultAdmin(
+        address _newAdmin,
         uint256 _cohortId
     ) public onlyCohortAdmin(_cohortId, msg.sender) {
-        changeTokenAdminMap[_cohortId] = true;
+        changeDefaultAdminMap[_cohortId] = true;
         uint256 votes = 0;
         for (uint256 i = 0; i < totalCohorts(); i++) {
-            if (changeTokenAdminMap[_cohortId] == true) {
+            if (changeDefaultAdminMap[_cohortId] == true) {
                 votes += 1;
             }
         }
@@ -210,9 +225,10 @@ contract wrpSale is
         }
 
         if (votes >= halfCohortCount) {
-            _deleteChangeTokenAdminMap();
-            _revokeRole(TOKEN_ADMIN, _currentTokenAdmin);
-            _grantRole(TOKEN_ADMIN, _newTokenAdmin);
+            _deleteChangeDefaultAdminMap();
+            _revokeRole(DEFAULT_ADMIN_ROLE, currentAdmin);
+            _grantRole(DEFAULT_ADMIN_ROLE, _newAdmin);
+            currentAdmin = _newAdmin;
         }
     }
 
@@ -276,17 +292,17 @@ contract wrpSale is
 
     //==================  Internal Functions    ==================//
 
-    function _deleteChangeTokenAdminMap() internal {
+    function _deleteChangeDefaultAdminMap() internal {
         for (uint256 i = 0; i < totalCohorts(); i++) {
-            delete changeTokenAdminMap[i];
+            delete changeDefaultAdminMap[i];
         }
     }
 
-    function _deleteChangeTechAdminMap() internal {
-        for (uint256 i = 0; i < totalCohorts(); i++) {
-            delete changeTechAdminMap[i];
-        }
-    }
+    // function _deleteChangeTechAdminMap() internal {
+    //     for (uint256 i = 0; i < totalCohorts(); i++) {
+    //         delete changeTechAdminMap[i];
+    //     }
+    // }
 
     /**     
     @notice override needed by UUPS proxy

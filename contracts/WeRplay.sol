@@ -17,8 +17,10 @@ contract WeRplay is
     UUPSUpgradeable
 {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant TOKEN_ADMIN = keccak256("TOKEN_ADMIN");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+
+    mapping(address => bool) public isBlocked;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -34,7 +36,7 @@ contract WeRplay is
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, msg.sender);
+        _grantRole(TOKEN_ADMIN, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
     }
 
@@ -46,8 +48,19 @@ contract WeRplay is
         _unpause();
     }
 
-    function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) {
+    function mint(address to, uint256 amount) public onlyRole(TOKEN_ADMIN) {
         _mint(to, amount);
+    }
+
+    function burn(address to, uint256 amount) public onlyRole(TOKEN_ADMIN) {
+        _burn(to, amount);
+    }
+
+    function blockTransfer(
+        address _from,
+        bool _status
+    ) public onlyRole(TOKEN_ADMIN) {
+        isBlocked[_from] = _status;
     }
 
     function _beforeTokenTransfer(
@@ -55,6 +68,7 @@ contract WeRplay is
         address to,
         uint256 amount
     ) internal override whenNotPaused {
+        require(isBlocked[from] == false, "Transfer Blocked");
         super._beforeTokenTransfer(from, to, amount);
     }
 
