@@ -1,13 +1,13 @@
 {
-	"name": "WRP-Token",
+	"name": "wrp",
 	"version": "1.0.0",
 	"description": "Smartcontracts repo WRP-Token",
 	"main": "index.js",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"deploy:test:wrp": "PROD=false npx hardhat --network testnet run scripts/deploywrp.ts",
-		"deploy:test:sale": "PROD=false npx hardhat --network testnet run scripts/deploySale.ts",
-		"deploy:prod:wrp": "PROD=true npx hardhat --network mainnet run scripts/deploywrp.ts",
+		"deploy:test:wrp": "PROD=false npx hardhat --network testnet run scripts/deployWrp.ts",
+		"deploy:test:sale": "PROD=false npx hardhat --network testnet run scripts/deployVote.ts",
+		"deploy:prod:wrp": "PROD=true npx hardhat --network mainnet run scripts/deployWrp.ts",
 		"upgrade:test:wrp": "PROD=false npx hardhat --network testnet run scripts/upgradeTokenLogic.ts",
 		"upgrade:test:sale": "PROD=false npx hardhat --network testnet run scripts/upgradeSaleLogic.ts"
 	},
