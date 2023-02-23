@@ -181,12 +181,12 @@ contract wrpVote is
         emit CohortSetup(_id, _name, _admin);
     }
 
-    function setMembersOfCohort(
-        uint256 _cohortId,
-        bytes32 _merkleRoot
-    ) public onlyCohortAdmin(_cohortId, msg.sender) {
-        cohortMap[_cohortId].merkleRoot = _merkleRoot;
-    }
+    // function setMembersOfCohort(
+    //     uint256 _cohortId,
+    //     bytes32 _merkleRoot
+    // ) public onlyCohortAdmin(_cohortId, msg.sender) {
+    //     cohortMap[_cohortId].merkleRoot = _merkleRoot;
+    // }
 
     function makeProposal(
         uint256 _cohortId,
