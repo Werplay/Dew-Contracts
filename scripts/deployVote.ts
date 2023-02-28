@@ -1,40 +1,48 @@
 import { ethers, upgrades, run } from "hardhat";
 const { getContractAddress } = require("@ethersproject/address");
-import { JambroSale } from "../typechain-types";
+import { WrpVote } from "../typechain-types";
 import { configService } from "../config";
+import { token } from "../typechain-types/@openzeppelin/contracts-upgradeable";
 const hre = require("hardhat");
 const request = require("request");
 
 async function main() {
 	const addresses = await futureAddress();
 
-	const saleStartTime = parseInt((Date.now() / 1000 + 5 * 60).toString());
-
-	const JambroSale = await ethers.getContractFactory("JambroSale");
-	const jambroSale = (await upgrades.deployProxy(
-		JambroSale,
+	const WrpVote = await ethers.getContractFactory("wrpVote");
+	const wrpVote = (await upgrades.deployProxy(
+		WrpVote,
 		[
 			configService.getValue("CONTRACT_OWNER"),
-			configService.getValue("saleRoyaltyGetter"),
-			configService.getValue("saleRoyalty"),
-			saleStartTime,
-			configService.getValue("proxyAddress"),
+			configService.getValue("TOKEN_ADDRESS"),
 		],
 		{
 			initializer: "initialize",
 			kind: "uups",
 		}
-	)) as JambroSale;
-	await jambroSale.deployed();
-	console.log(" jambroSale Proxy deployed at : ", jambroSale.address);
+	)) as WrpVote;
+	await wrpVote.deployed();
+	console.log(" wrpVote Proxy deployed at : ", wrpVote.address);
+
+	const TokenContract = await ethers.getContractFactory("WeRplay");
+	const tokenContract = await TokenContract.attach(
+		configService.getValue("TOKEN_ADDRESS")
+	);
+
+	console.log(" Granting Role Token Admin to Vote Contract ");
+	await tokenContract.grantRole(tokenContract.TOKEN_ADMIN(), wrpVote.address);
 
 	await sleep(20);
 
-	if (jambroSale.address == addresses.proxy) {
-		await verifyLogic(addresses.logic, []);
+	if (wrpVote.address == addresses.proxy) {
+		const args = [
+			configService.getValue("CONTRACT_OWNER"),
+			configService.getValue("TOKEN_ADDRESS"),
+		];
+		await verifyLogic(addresses.logic, args);
 		await verifyProxy(addresses.proxy);
 	} else {
-		await verifyProxy(jambroSale.address);
+		await verifyProxy(wrpVote.address);
 	}
 }
 
