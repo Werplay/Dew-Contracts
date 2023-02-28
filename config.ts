@@ -22,7 +22,7 @@ const requiredConfig = [
 	"PRIVATE_KEY",
 	"MAINNET_RPC",
 	"TESTNET_RPC",
-	"CONTRACT_OWNER",
+	// "CONTRACT_OWNER",
 ];
 
 const configService = new ConfigService(process.env).ensureValues(
