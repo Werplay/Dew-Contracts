@@ -10,14 +10,14 @@ describe("Vote", function () {
 	let token: WeRplay;
 	let vote: WrpVote;
 	let deployer: SignerWithAddress,
-		otherAccount: SignerWithAddress,
-		fundsReciever: SignerWithAddress,
-		buyer: SignerWithAddress,
-		royaltyGetter: SignerWithAddress;
+		zero: SignerWithAddress,
+		one: SignerWithAddress,
+		two: SignerWithAddress,
+		three: SignerWithAddress,
+		four: SignerWithAddress;
 
 	before("Deployment and variables setup", async () => {
-		[deployer, otherAccount, fundsReciever, buyer, royaltyGetter] =
-			await ethers.getSigners();
+		[deployer, zero, one, two, three, four] = await ethers.getSigners();
 
 		const Token = await ethers.getContractFactory("WeRplay");
 		const Vote = await ethers.getContractFactory("wrpVote");
@@ -48,110 +48,109 @@ describe("Vote", function () {
 				await token.hasRole(await token.TOKEN_ADMIN(), vote.address)
 			).to.be.equal(true);
 		});
-
-		// 	it("saleActive is false", async function () {
-		// 		expect(await jambroSale.saleActive()).to.be.equal(false);
-		// 	});
-
-		// 	it("royaltyGetter is right", async function () {
-		// 		expect(await jambroSale.royaltyGetter()).to.be.equal(
-		// 			royaltyGetter.address
-		// 		);
-		// 	});
-
-		// 	it("royalty is right", async function () {
-		// 		expect(await jambroSale.royalty()).to.be.equal(royalty);
-		// 	});
 	});
 
-	// describe("Sale Setup Test", function () {
-	// 	it("Reverts : setting up NFT for sale when Sale is not Active", async function () {
-	// 		await expect(
-	// 			jambroSale.setForSale(1, ethers.utils.parseEther("1"))
-	// 		).to.be.revertedWith("Sale is not Active");
-	// 	});
+	describe("setupCohort Test", function () {
+		it("sets up 5 cohorts", async function () {
+			const admins = [
+				zero.address,
+				one.address,
+				two.address,
+				three.address,
+				four.address,
+			];
 
-	// 	it("Forwards blockchain to active sale time", async function () {
-	// 		await time.increase(ONE_DAY_IN_SECS);
-	// 	});
+			for (let i = 0; i < 5; i++) {
+				await vote.setupCohort(i, `Cohort ${i}`, admins[i]);
+				const res = await vote.cohortMap(i);
+				expect(res.name).to.be.equal(`Cohort ${i}`);
+				expect(res.admin).to.be.equal(admins[i]);
+				expect(res.exists).to.be.equal(true);
+				expect(await vote.totalCohorts()).to.be.equal(i + 1);
+			}
+		});
 
-	// 	it("Reverts : setting up NFT for sale with price 0", async function () {
-	// 		await expect(
-	// 			jambroSale.setForSale(1, ethers.utils.parseEther("0"))
-	// 		).to.be.revertedWith("Price cannot be 0");
-	// 	});
+		// it("Forwards blockchain to active sale time", async function () {
+		// 	await time.increase(ONE_DAY_IN_SECS);
+		// });
 
-	// 	it("Reverts : setting up NFT for sale not minted yet", async function () {
-	// 		await expect(
-	// 			jambroSale.setForSale(1, ethers.utils.parseEther("1"))
-	// 		).to.be.revertedWith("ERC721: invalid token ID");
-	// 	});
+		// it("Reverts : setting up NFT for sale with price 0", async function () {
+		// 	await expect(
+		// 		jambroSale.setForSale(1, ethers.utils.parseEther("0"))
+		// 	).to.be.revertedWith("Price cannot be 0");
+		// });
 
-	// 	it("Mints id 0 to deployer and 1 to otherAccount", async function () {
-	// 		await jambro.safeMint(deployer.address, "uri For Id 0");
-	// 		await jambro.safeMint(otherAccount.address, "uri For Id 1");
+		// it("Reverts : setting up NFT for sale not minted yet", async function () {
+		// 	await expect(
+		// 		jambroSale.setForSale(1, ethers.utils.parseEther("1"))
+		// 	).to.be.revertedWith("ERC721: invalid token ID");
+		// });
 
-	// 		expect(await jambro.deployerOf(0)).to.be.equal(deployer.address);
+		// it("Mints id 0 to deployer and 1 to otherAccount", async function () {
+		// 	await jambro.safeMint(deployer.address, "uri For Id 0");
+		// 	await jambro.safeMint(otherAccount.address, "uri For Id 1");
 
-	// 		expect(await jambro.deployerOf(1)).to.be.equal(otherAccount.address);
-	// 	});
+		// 	expect(await jambro.deployerOf(0)).to.be.equal(deployer.address);
 
-	// 	it("Reverts : setting up NFT for sale not owned by caller", async function () {
-	// 		await expect(
-	// 			jambroSale.setForSale(1, ethers.utils.parseEther("1"))
-	// 		).to.be.revertedWith("Address not deployer of this token Id");
-	// 	});
+		// 	expect(await jambro.deployerOf(1)).to.be.equal(otherAccount.address);
+		// });
 
-	// 	it("Reverts : setting up NFT for sale but no allowance to sale contract", async function () {
-	// 		await expect(
-	// 			jambroSale
-	// 				.connect(otherAccount)
-	// 				.setForSale(1, ethers.utils.parseEther("1"))
-	// 		).to.be.revertedWith("Sale Contract not approved for this NFT");
-	// 	});
+		// it("Reverts : setting up NFT for sale not owned by caller", async function () {
+		// 	await expect(
+		// 		jambroSale.setForSale(1, ethers.utils.parseEther("1"))
+		// 	).to.be.revertedWith("Address not deployer of this token Id");
+		// });
 
-	// 	it("sets up nft 1 for sale with price 2 eth", async function () {
-	// 		await jambro.connect(otherAccount).approve(jambroSale.address, 1);
-	// 		await jambroSale
-	// 			.connect(otherAccount)
-	// 			.setForSale(1, ethers.utils.parseEther("2"));
+		// it("Reverts : setting up NFT for sale but no allowance to sale contract", async function () {
+		// 	await expect(
+		// 		jambroSale
+		// 			.connect(otherAccount)
+		// 			.setForSale(1, ethers.utils.parseEther("1"))
+		// 	).to.be.revertedWith("Sale Contract not approved for this NFT");
+		// });
 
-	// 		const price = ethers.utils.parseEther("2");
-	// 		expect((await jambroSale.nftMap(1)).price).to.be.equal(price);
-	// 	});
+		// it("sets up nft 1 for sale with price 2 eth", async function () {
+		// 	await jambro.connect(otherAccount).approve(jambroSale.address, 1);
+		// 	await jambroSale
+		// 		.connect(otherAccount)
+		// 		.setForSale(1, ethers.utils.parseEther("2"));
 
-	// 	it("updates nft 1 for sale with price 2.5 eth", async function () {
-	// 		await jambro.connect(otherAccount).approve(jambroSale.address, 1);
-	// 		await jambroSale
-	// 			.connect(otherAccount)
-	// 			.setForSale(1, ethers.utils.parseEther("2.5"));
+		// 	const price = ethers.utils.parseEther("2");
+		// 	expect((await jambroSale.nftMap(1)).price).to.be.equal(price);
+		// });
 
-	// 		const price = ethers.utils.parseEther("2.5");
-	// 		expect((await jambroSale.nftMap(1)).price).to.be.equal(price);
-	// 	});
+		// it("updates nft 1 for sale with price 2.5 eth", async function () {
+		// 	await jambro.connect(otherAccount).approve(jambroSale.address, 1);
+		// 	await jambroSale
+		// 		.connect(otherAccount)
+		// 		.setForSale(1, ethers.utils.parseEther("2.5"));
 
-	// 	it("sale jambro Commission is right", async function () {
-	// 		const result = await jambroSale
-	// 			.connect(buyer)
-	// 			.jambroCommission(ethers.utils.parseEther("2.5"));
+		// 	const price = ethers.utils.parseEther("2.5");
+		// 	expect((await jambroSale.nftMap(1)).price).to.be.equal(price);
+		// });
 
-	// 		expect(ethers.utils.formatEther(result)).to.be.equal("0.025");
-	// 	});
+		// it("sale jambro Commission is right", async function () {
+		// 	const result = await jambroSale
+		// 		.connect(buyer)
+		// 		.jambroCommission(ethers.utils.parseEther("2.5"));
 
-	// 	it("setting commission to 10%", async function () {
-	// 		await jambroSale
-	// 			.connect(deployer)
-	// 			.setRoyalty(ethers.utils.parseEther("0.1"));
-	// 	});
+		// 	expect(ethers.utils.formatEther(result)).to.be.equal("0.025");
+		// });
 
-	// 	it("sale jambro Commission is right", async function () {
-	// 		const result = await jambroSale
-	// 			.connect(buyer)
-	// 			.jambroCommission(ethers.utils.parseEther("2.5"));
+		// it("setting commission to 10%", async function () {
+		// 	await jambroSale
+		// 		.connect(deployer)
+		// 		.setRoyalty(ethers.utils.parseEther("0.1"));
+		// });
 
-	// 		expect(ethers.utils.formatEther(result)).to.be.equal("0.25");
-	// 	});
-	// });
+		// it("sale jambro Commission is right", async function () {
+		// 	const result = await jambroSale
+		// 		.connect(buyer)
+		// 		.jambroCommission(ethers.utils.parseEther("2.5"));
+
+		// 	expect(ethers.utils.formatEther(result)).to.be.equal("0.25");
+		// });
+	});
 
 	// describe("Buy Test", function () {
 	// 	it("Reverts : buys a nft not for sale", async function () {
