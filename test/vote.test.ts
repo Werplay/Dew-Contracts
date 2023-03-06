@@ -74,6 +74,15 @@ describe("Vote", function () {
 			hasRoles.map((e) => expect(e).to.be.equal(true));
 		});
 
+		it("Reverts: Cohort Id not valid", async function () {
+			let cohortId = 4;
+
+			// Create a new cohort with id < 0;
+			await expect(
+				vote.setupCohort(cohortId, "Green", greenCaptain.address)
+			).to.be.revertedWith("Cohort Id not valid");
+		});
+
 		it("Test setup cohort all cohorts", async function () {
 			// Creates a normal cohort
 
@@ -91,13 +100,13 @@ describe("Vote", function () {
 			expect(totalCohorts).to.equal(cohortId + 1);
 		});
 
-		it("Reverts: Cohort id more than counter", async function () {
+		it("Reverts: Five cohorts already setup", async function () {
 			let cohortId = 10;
 
 			// Create a new cohort with id < 0;
 			await expect(
 				vote.setupCohort(cohortId, "Green", greenCaptain.address)
-			).to.be.revertedWith("Cohort Id not valid");
+			).to.be.revertedWith("Five cohorts already setup");
 		});
 
 		it("Reverts: Duplicate id 0 ", async function () {

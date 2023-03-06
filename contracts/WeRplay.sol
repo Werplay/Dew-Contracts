@@ -20,8 +20,6 @@ contract WeRplay is
     bytes32 public constant TOKEN_ADMIN = keccak256("TOKEN_ADMIN");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
-    mapping(address => bool) public isBlocked;
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -56,19 +54,11 @@ contract WeRplay is
         _burn(to, amount);
     }
 
-    function blockTransfer(
-        address _from,
-        bool _status
-    ) public onlyRole(TOKEN_ADMIN) {
-        isBlocked[_from] = _status;
-    }
-
     function _beforeTokenTransfer(
         address from,
         address to,
         uint256 amount
     ) internal override whenNotPaused {
-        require(isBlocked[from] == false, "Transfer Blocked");
         super._beforeTokenTransfer(from, to, amount);
     }
 

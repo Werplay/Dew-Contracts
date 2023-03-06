@@ -168,6 +168,7 @@ contract wrpVote is
         string memory _name,
         address _admin
     ) public onlyRole(TECH_ADMIN) {
+        require(_id < 5, "Five cohorts already setup");
         require(_id <= cohortCounter.current(), "Cohort Id not valid");
         if (cohortMap[_id].exists == false) {
             cohortMap[_id].exists = true;
