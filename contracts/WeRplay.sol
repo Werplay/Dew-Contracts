@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract WeRplay is
+contract Dew is
     Initializable,
     ERC20Upgradeable,
     ERC20BurnableUpgradeable,
@@ -26,7 +26,7 @@ contract WeRplay is
     }
 
     function initialize() public initializer {
-        __ERC20_init("WeRplay", "WRP");
+        __ERC20_init("Dew", "Dew");
         __ERC20Burnable_init();
         __Pausable_init();
         __AccessControl_init();
