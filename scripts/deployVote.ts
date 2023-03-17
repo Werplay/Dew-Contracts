@@ -2,7 +2,7 @@ import { ethers, upgrades, run } from "hardhat";
 const { getContractAddress } = require("@ethersproject/address");
 import { WrpVote } from "../typechain-types";
 import { configService } from "../config";
-import { token } from "../typechain-types/@openzeppelin/contracts-upgradeable";
+import { Dew } from "../typechain-types";
 const hre = require("hardhat");
 const request = require("request");
 
@@ -24,13 +24,48 @@ async function main() {
 	await wrpVote.deployed();
 	console.log(" wrpVote Proxy deployed at : ", wrpVote.address);
 
-	const TokenContract = await ethers.getContractFactory("WeRplay");
+	const TokenContract = await ethers.getContractFactory("Dew");
 	const tokenContract = await TokenContract.attach(
 		configService.getValue("TOKEN_ADDRESS")
 	);
 
 	console.log(" Granting Role Token Admin to Vote Contract ");
 	await tokenContract.grantRole(tokenContract.TOKEN_ADMIN(), wrpVote.address);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		0,
+		"Red",
+		"0xCE60B14E47adDeafb2d77d564A204E215b52648a"
+	);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		1,
+		"Green",
+		"0xFb76e954a36e595291b9fbEDF8a195F0678BBbeC"
+	);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		2,
+		"Blue",
+		"0x3850aE6e3e6d581D8D687CC874672B61A9824a6f"
+	);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		3,
+		"Purple",
+		"0x965b73E6e4bE825b470b644709a2E70802878990"
+	);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		4,
+		"Yellow",
+		"0x9c3e193EF09f8D4863131D0B12bAFA6792B611ac"
+	);
 
 	await sleep(20);
 

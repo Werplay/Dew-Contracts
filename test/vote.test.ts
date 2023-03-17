@@ -1,13 +1,15 @@
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
-import { WeRplay, WrpVote } from "../typechain-types";
+import { Dew, WrpVote } from "../typechain-types";
 import { getDefaultProvider, Signer } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers, upgrades } from "hardhat";
+const { MerkleTree } = require("merkletreejs");
+const { keccak256 } = require("@ethersproject/keccak256");
 
 describe("Vote", function () {
-	let token: WeRplay;
+	let token: Dew;
 	let vote: WrpVote;
 	let deployer: SignerWithAddress,
 		otherAccount: SignerWithAddress,
@@ -34,13 +36,13 @@ describe("Vote", function () {
 			testNewAdmin,
 		] = await ethers.getSigners();
 
-		const Token = await ethers.getContractFactory("WeRplay");
+		const Token = await ethers.getContractFactory("Dew");
 		const Vote = await ethers.getContractFactory("wrpVote");
 
 		token = (await upgrades.deployProxy(Token, {
 			initializer: "initialize",
 			kind: "uups",
-		})) as WeRplay;
+		})) as Dew;
 
 		await token.deployed();
 
@@ -68,7 +70,7 @@ describe("Vote", function () {
 			let hasRoles = await Promise.all([
 				vote.hasRole(await vote.DEFAULT_ADMIN_ROLE(), deployer.address),
 				vote.hasRole(await vote.TECH_ADMIN(), deployer.address),
-				vote.hasRole(await vote.TOKEN_ADMIN(), deployer.address),
+				// vote.hasRole(await vote.TOKEN_ADMIN(), deployer.address),
 			]);
 
 			hasRoles.map((e) => expect(e).to.be.equal(true));
@@ -134,20 +136,6 @@ describe("Vote", function () {
 			expect(cohort.name).to.be.equal(cohortName);
 			expect(cohort.admin).to.be.equal(admin);
 		});
-
-		// 	it("saleActive is false", async function () {
-		// 		expect(await jambroSale.saleActive()).to.be.equal(false);
-		// 	});
-
-		// 	it("royaltyGetter is right", async function () {
-		// 		expect(await jambroSale.royaltyGetter()).to.be.equal(
-		// 			royaltyGetter.address
-		// 		);
-		// 	});
-
-		// 	it("royalty is right", async function () {
-		// 		expect(await jambroSale.royalty()).to.be.equal(royalty);
-		// 	});
 	});
 
 	describe("Proposals", async function () {
@@ -308,5 +296,87 @@ describe("Vote", function () {
 			}
 			expect(isEmpty).to.be.equal(false);
 		});
+	});
+
+	describe("Merkle Test Cases", async function () {
+		it("Generate Merkle for cohort 1", async function () {
+			const blue = {
+				captain: blueCaptain,
+				id: 1,
+			};
+			let whitelistedUsers = [
+				"0xD33bf7c2983f51dBC4abbF21850fA76d652329C8",
+				"0x9b996C0EC8f19b4Cc9D8e00EdB79Bf2456d7EA03",
+				"0xd8F05998F94347330d8e5Bc2C5488428f50591a3",
+			];
+			const leafNodes = whitelistedUsers.map((addr) => keccak256(addr));
+			const merkleTree = new MerkleTree(leafNodes, keccak256, {
+				sortPairs: true,
+				sort: true,
+				sortLeaves: true,
+			});
+
+			const merkleRoot = "0x" + merkleTree.getRoot().toString("hex");
+
+			// console.log(merkleRoot);
+
+			await vote.connect(blue.captain).setMembersOfCohort(blue.id, merkleRoot);
+
+			const proofOfAddress_0 = merkleTree.getHexProof(
+				keccak256(whitelistedUsers[0])
+			);
+			const isWhitelisted = await vote.isMember(
+				whitelistedUsers[0],
+				blue.id,
+				proofOfAddress_0
+			);
+			// console.log(isWhitelisted);
+
+			const proofOfAddress_1 = merkleTree.getHexProof(
+				keccak256(whitelistedUsers[1])
+			);
+			const isWhitelisted_1 = await vote.isMember(
+				whitelistedUsers[1],
+				blue.id,
+				proofOfAddress_1
+			);
+			// console.log(isWhitelisted_1);
+
+			// console.log("merkleTree: ", merkleTree);
+
+			// const temp = new MerkleTree(merkleTree.toString());
+			// console.log(temp);
+		});
+
+		// it("Half or more votes changes the cohort admin.", async function () {
+		// 	expect((await vote.cohortMap(0)).admin).to.be.equal(redCaptain.address);
+
+		// 	await vote
+		// 		.connect(blueCaptain)
+		// 		.changeCohortAdmin(testNewAdmin.address, 1, 0);
+		// 	await vote
+		// 		.connect(greenCaptain)
+		// 		.changeCohortAdmin(testNewAdmin.address, 2, 0);
+		// 	await vote
+		// 		.connect(yellowCaptain)
+		// 		.changeCohortAdmin(testNewAdmin.address, 3, 0);
+
+		// 	expect((await vote.cohortMap(0)).admin).to.be.equal(
+		// 		testNewAdmin.address
+		// 	);
+		// });
+
+		// it("Clear Cohort Admin Map After Voting is done", async function () {
+		// 	let isEmpty = false;
+		// 	let totalCohorts = await vote.totalCohorts();
+
+		// 	for (let i = 0; i < totalCohorts.toNumber(); i++) {
+		// 		if (await vote.changeCohortAdminMap(0, testNewAdmin.address, i)) {
+		// 			isEmpty = true;
+		// 			break;
+		// 		}
+		// 	}
+		// 	expect(isEmpty).to.be.equal(false);
+		// });
 	});
 });

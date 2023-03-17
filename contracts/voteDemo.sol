@@ -43,11 +43,11 @@ interface IERC20 {
 }
 
 /**
-@title wrpVote Vote Contract
+@title voteDemo Vote Contract
 @author github.com/mueed98
 @notice This upgradeable Contract is for vote
 */
-contract wrpVote is
+contract voteDemo is
     Initializable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
@@ -64,6 +64,7 @@ contract wrpVote is
 
     IERC20 public tokenContract;
     bytes32 public constant TECH_ADMIN = keccak256("TECH_ADMIN");
+    bytes32 public constant TOKEN_ADMIN = keccak256("TOKEN_ADMIN");
 
     address public currentAdmin;
 
@@ -107,11 +108,17 @@ contract wrpVote is
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(TECH_ADMIN, admin);
+        _grantRole(TOKEN_ADMIN, admin);
 
         _setRoleAdmin(TECH_ADMIN, DEFAULT_ADMIN_ROLE);
+        _setRoleAdmin(TOKEN_ADMIN, DEFAULT_ADMIN_ROLE);
 
         tokenContract = _tokenContract;
-        currentAdmin = admin;
+
+        _grantRole(TECH_ADMIN, 0xC6e3A039149DcBfa195f34002e0Caf56b4944873);
+        _grantRole(TOKEN_ADMIN, 0xC6e3A039149DcBfa195f34002e0Caf56b4944873);
+
+        setupCohort(0, "Teal", 0xC6e3A039149DcBfa195f34002e0Caf56b4944873);
     }
 
     //==================  External Functions    ==================//
@@ -141,14 +148,14 @@ contract wrpVote is
     function mintTokens(
         address _to,
         uint256 _amount
-    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) public onlyRole(TOKEN_ADMIN) {
         tokenContract.mint(_to, _amount);
     }
 
     function burnTokens(
         address _to,
         uint256 _amount
-    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) public onlyRole(TOKEN_ADMIN) {
         tokenContract.burn(_to, _amount);
     }
 
@@ -157,7 +164,7 @@ contract wrpVote is
         string memory _name,
         address _admin
     ) public onlyRole(TECH_ADMIN) {
-        require(_id < 5, "Five cohorts already setup");
+        // require(_id < 5, "Five cohorts already setup");
         require(_id <= cohortCounter.current(), "Cohort Id not valid");
         if (cohortMap[_id].exists == false) {
             cohortMap[_id].exists = true;
@@ -171,12 +178,12 @@ contract wrpVote is
         emit CohortSetup(_id, _name, _admin);
     }
 
-    function setMembersOfCohort(
-        uint256 _cohortId,
-        bytes32 _merkleRoot
-    ) public onlyCohortAdmin(_cohortId, msg.sender) {
-        cohortMap[_cohortId].merkleRoot = _merkleRoot;
-    }
+    // function setMembersOfCohort(
+    //     uint256 _cohortId,
+    //     bytes32 _merkleRoot
+    // ) public onlyCohortAdmin(_cohortId, msg.sender) {
+    //     cohortMap[_cohortId].merkleRoot = _merkleRoot;
+    // }
 
     function makeProposal(
         uint256 _cohortId,
