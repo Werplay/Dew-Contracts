@@ -2,7 +2,7 @@ import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import { Dew, WrpVote } from "../typechain-types";
-import { getDefaultProvider, Signer } from "ethers";
+import { getDefaultProvider, providers, Signer } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers, upgrades } from "hardhat";
 const { MerkleTree } = require("merkletreejs");
@@ -20,7 +20,8 @@ describe("Vote", function () {
 		greenCaptain: SignerWithAddress,
 		yellowCaptain: SignerWithAddress,
 		blueCaptain: SignerWithAddress,
-		testNewAdmin: SignerWithAddress;
+		testNewAdmin: SignerWithAddress,
+		testNewTechAdmin: SignerWithAddress;
 
 	before("Deployment and variables setup", async () => {
 		[
@@ -34,6 +35,7 @@ describe("Vote", function () {
 			yellowCaptain,
 			blueCaptain,
 			testNewAdmin,
+			testNewTechAdmin,
 		] = await ethers.getSigners();
 
 		const Token = await ethers.getContractFactory("Dew");
@@ -68,12 +70,11 @@ describe("Vote", function () {
 
 		it("Vote contract admin has intialiazed roles", async function () {
 			let hasRoles = await Promise.all([
-				vote.hasRole(await vote.DEFAULT_ADMIN_ROLE(), deployer.address),
-				vote.hasRole(await vote.TECH_ADMIN(), deployer.address),
-				// vote.hasRole(await vote.TOKEN_ADMIN(), deployer.address),
+				await vote.DEFAULT_ADMIN_ROLE(),
+				await vote.TECH_ADMIN(),
 			]);
 
-			hasRoles.map((e) => expect(e).to.be.equal(true));
+			hasRoles.map((e) => expect(e).to.be.equal(deployer.address));
 		});
 
 		it("Reverts: Cohort Id not valid", async function () {
@@ -121,9 +122,7 @@ describe("Vote", function () {
 		it("Reverts: Setup Cohort called by unauthorized role.", async function () {
 			await expect(
 				vote.connect(otherAccount).setupCohort(1, "Green", greenCaptain.address)
-			).to.be.revertedWith(
-				`AccessControl: account ${otherAccount.address.toLowerCase()} is missing role ${await vote.TECH_ADMIN()}`
-			);
+			).to.be.revertedWith(`Caller is Missing Role`);
 		});
 
 		it("Cohort name and id is set correctly", async function () {
@@ -220,12 +219,9 @@ describe("Vote", function () {
 		});
 
 		it("Default admin changes at half or more cohorts vote", async function () {
-			expect(
-				await vote.hasRole(
-					await vote.DEFAULT_ADMIN_ROLE(),
-					testNewAdmin.address
-				)
-			).to.be.equal(false);
+			expect(await vote.DEFAULT_ADMIN_ROLE()).to.not.be.equal(
+				testNewAdmin.address
+			);
 
 			await vote
 				.connect(greenCaptain)
@@ -234,12 +230,7 @@ describe("Vote", function () {
 				.connect(yellowCaptain)
 				.changeDefaultAdmin(testNewAdmin.address, 3);
 
-			expect(
-				await vote.hasRole(
-					await vote.DEFAULT_ADMIN_ROLE(),
-					testNewAdmin.address
-				)
-			).to.be.equal(true);
+			expect(await vote.DEFAULT_ADMIN_ROLE()).to.be.equal(testNewAdmin.address);
 		});
 
 		it("Clear Default Admin Map After Voting is done", async function () {
@@ -347,36 +338,43 @@ describe("Vote", function () {
 			// const temp = new MerkleTree(merkleTree.toString());
 			// console.log(temp);
 		});
+	});
+	describe("Batch Transfer Test", async function () {
+		it("Native Transfer", async function () {
+			const addressList = [
+				"0xCE60B14E47adDeafb2d77d564A204E215b52648a",
+				"0xFb76e954a36e595291b9fbEDF8a195F0678BBbeC",
+				"0x3850aE6e3e6d581D8D687CC874672B61A9824a6f",
+				"0x965b73E6e4bE825b470b644709a2E70802878990",
+				"0x9c3e193ef09f8d4863131d0b12bafa6792b611ac",
+			];
 
-		// it("Half or more votes changes the cohort admin.", async function () {
-		// 	expect((await vote.cohortMap(0)).admin).to.be.equal(redCaptain.address);
+			const amountForEachAddress = "0.5";
+			const value = addressList.length * parseFloat(amountForEachAddress);
 
-		// 	await vote
-		// 		.connect(blueCaptain)
-		// 		.changeCohortAdmin(testNewAdmin.address, 1, 0);
-		// 	await vote
-		// 		.connect(greenCaptain)
-		// 		.changeCohortAdmin(testNewAdmin.address, 2, 0);
-		// 	await vote
-		// 		.connect(yellowCaptain)
-		// 		.changeCohortAdmin(testNewAdmin.address, 3, 0);
+			await vote
+				.connect(deployer)
+				.batchNativeTransfer(
+					addressList,
+					ethers.utils.parseEther(amountForEachAddress),
+					{
+						value: ethers.utils.parseEther(value.toString()),
+					}
+				);
 
-		// 	expect((await vote.cohortMap(0)).admin).to.be.equal(
-		// 		testNewAdmin.address
-		// 	);
-		// });
+			// const balance = await ethers.provider.getBalance(
+			// 	"0x9c3e193ef09f8d4863131d0b12bafa6792b611ac"
+			// );
+			// console.log(ethers.utils.formatEther(balance));
+		});
+	});
 
-		// it("Clear Cohort Admin Map After Voting is done", async function () {
-		// 	let isEmpty = false;
-		// 	let totalCohorts = await vote.totalCohorts();
-
-		// 	for (let i = 0; i < totalCohorts.toNumber(); i++) {
-		// 		if (await vote.changeCohortAdminMap(0, testNewAdmin.address, i)) {
-		// 			isEmpty = true;
-		// 			break;
-		// 		}
-		// 	}
-		// 	expect(isEmpty).to.be.equal(false);
-		// });
+	describe("Tech Admin Change Test", async function () {
+		it("Change Tech admin", async function () {
+			await vote
+				.connect(testNewAdmin)
+				.changeTechAdmin(testNewTechAdmin.address);
+			expect(await vote.TECH_ADMIN()).to.be.equal(testNewTechAdmin.address);
+		});
 	});
 });

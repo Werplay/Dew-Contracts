@@ -13,7 +13,7 @@ async function main() {
 	const wrpVote = (await upgrades.deployProxy(
 		WrpVote,
 		[
-			configService.getValue("CONTRACT_OWNER"),
+			"0xc6e3a039149dcbfa195f34002e0caf56b4944873",
 			configService.getValue("TOKEN_ADDRESS"),
 		],
 		{

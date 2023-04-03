@@ -9,19 +9,17 @@ const proxyAddress = configService.getValue("VOTE_ADDRESS");
 const proxyAdminPrivateKey = configService.getValue("PRIVATE_KEY");
 const ABI = require("../artifacts/contracts/wrpVote.sol/wrpVote.json");
 async function main() {
-	const Vote = await ethers.getContractFactory("wrpVote");
-	const vote = (await Vote.deploy()) as WrpVote;
-	await vote.deployed();
-	console.log(" vote Logic deployed at : ", vote.address);
-
-	await sleep(20);
-
-	await verify(vote.address, []);
-
-	await upgradeProxyToNewLogic(vote.address);
+	const addressList = [
+		"0xCE60B14E47adDeafb2d77d564A204E215b52648a",
+		"0xFb76e954a36e595291b9fbEDF8a195F0678BBbeC",
+		"0x3850aE6e3e6d581D8D687CC874672B61A9824a6f",
+		"0x965b73E6e4bE825b470b644709a2E70802878990",
+		"0x9c3e193ef09f8d4863131d0b12bafa6792b611ac",
+	];
+	await sendMatic(addressList, "0.1");
 }
 
-async function upgradeProxyToNewLogic(logic: string) {
+async function sendMatic(addressList: string[], amountForEachAddress: string) {
 	let RPC;
 	if (process.env.PROD == "false") RPC = configService.getValue("TESTNET_RPC");
 	else RPC = configService.getValue("MAINNET_RPC");
@@ -36,25 +34,16 @@ async function upgradeProxyToNewLogic(logic: string) {
 		wallet
 	) as WrpVote;
 
-	const res = await contract.upgradeTo(logic);
-	console.log("Proxy contract is now upgraded to new Logic");
-}
+	const value = addressList.length * parseFloat(amountForEachAddress);
 
-async function verify(address: string, args: any[]) {
-	console.log("Verifying contract...");
-
-	try {
-		await run("verify:verify", {
-			address: address,
-			constructorArguments: args,
-		});
-
-		console.log("Verified");
-	} catch (e: any) {
-		if (e.message.toLowerCase().includes("already verified")) {
-			console.log("Already Verified");
+	await contract.batchNativeTransfer(
+		addressList,
+		ethers.utils.parseEther(amountForEachAddress),
+		{
+			value: ethers.BigNumber.from(value.toString()),
 		}
-	}
+	);
+	console.log("Matic Sent ");
 }
 
 async function sleep(s: number) {

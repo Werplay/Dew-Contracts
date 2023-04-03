@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -43,7 +42,7 @@ interface IERC20 {
 }
 
 /**
-@title voteDemo Vote Contract
+@title wrpVote Vote Contract
 @author github.com/mueed98
 @notice This upgradeable Contract is for vote
 */
@@ -51,7 +50,6 @@ contract voteDemo is
     Initializable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
-    AccessControlUpgradeable,
     UUPSUpgradeable
 {
     event CohortSetup(uint256 id, string name, address admin);
@@ -63,10 +61,9 @@ contract voteDemo is
     CountersUpgradeable.Counter private proposalCounter;
 
     IERC20 public tokenContract;
-    bytes32 public constant TECH_ADMIN = keccak256("TECH_ADMIN");
-    bytes32 public constant TOKEN_ADMIN = keccak256("TOKEN_ADMIN");
 
-    address public currentAdmin;
+    address public TECH_ADMIN;
+    address public DEFAULT_ADMIN_ROLE;
 
     struct cohort {
         string name;
@@ -98,33 +95,63 @@ contract voteDemo is
         _;
     }
 
+    modifier onlyRole(address _role) {
+        require(msg.sender == _role, "Caller is Missing Role");
+        _;
+    }
+
     function initialize(
         address admin,
         IERC20 _tokenContract
     ) public initializer {
         __Pausable_init();
-        __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(TECH_ADMIN, admin);
-        _grantRole(TOKEN_ADMIN, admin);
-
-        _setRoleAdmin(TECH_ADMIN, DEFAULT_ADMIN_ROLE);
-        _setRoleAdmin(TOKEN_ADMIN, DEFAULT_ADMIN_ROLE);
+        DEFAULT_ADMIN_ROLE = admin;
+        TECH_ADMIN = admin;
 
         tokenContract = _tokenContract;
-
-        _grantRole(TECH_ADMIN, 0xC6e3A039149DcBfa195f34002e0Caf56b4944873);
-        _grantRole(TOKEN_ADMIN, 0xC6e3A039149DcBfa195f34002e0Caf56b4944873);
-
-        setupCohort(0, "Teal", 0xC6e3A039149DcBfa195f34002e0Caf56b4944873);
     }
 
     //==================  External Functions    ==================//
 
     function withdraw(address reciever) external onlyRole(TECH_ADMIN) {
         AddressUpgradeable.sendValue(payable(reciever), address(this).balance);
+    }
+
+    function changeTechAdmin(
+        address _newTechAdmin
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        TECH_ADMIN = _newTechAdmin;
+    }
+
+    function batchTokenTransfer(
+        address[] calldata _listOfAddresses,
+        uint256 _amountForEachAddress
+    ) external {
+        for (uint256 i; i < _listOfAddresses.length; ++i) {
+            tokenContract.transferFrom(
+                msg.sender,
+                _listOfAddresses[i],
+                _amountForEachAddress
+            );
+        }
+    }
+
+    function batchNativeTransfer(
+        address[] calldata _listOfAddresses,
+        uint256 _amountForEachAddress
+    ) external payable {
+        require(
+            msg.value == _listOfAddresses.length * _amountForEachAddress,
+            "Value sent is less"
+        );
+        for (uint256 i; i < _listOfAddresses.length; ++i) {
+            AddressUpgradeable.sendValue(
+                payable(_listOfAddresses[i]),
+                _amountForEachAddress
+            );
+        }
     }
 
     //==================  Administrative Functions    ==================//
@@ -148,14 +175,14 @@ contract voteDemo is
     function mintTokens(
         address _to,
         uint256 _amount
-    ) public onlyRole(TOKEN_ADMIN) {
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
         tokenContract.mint(_to, _amount);
     }
 
     function burnTokens(
         address _to,
         uint256 _amount
-    ) public onlyRole(TOKEN_ADMIN) {
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
         tokenContract.burn(_to, _amount);
     }
 
@@ -164,7 +191,7 @@ contract voteDemo is
         string memory _name,
         address _admin
     ) public onlyRole(TECH_ADMIN) {
-        // require(_id < 5, "Five cohorts already setup");
+        require(_id < 5, "Five cohorts already setup");
         require(_id <= cohortCounter.current(), "Cohort Id not valid");
         if (cohortMap[_id].exists == false) {
             cohortMap[_id].exists = true;
@@ -178,12 +205,12 @@ contract voteDemo is
         emit CohortSetup(_id, _name, _admin);
     }
 
-    // function setMembersOfCohort(
-    //     uint256 _cohortId,
-    //     bytes32 _merkleRoot
-    // ) public onlyCohortAdmin(_cohortId, msg.sender) {
-    //     cohortMap[_cohortId].merkleRoot = _merkleRoot;
-    // }
+    function setMembersOfCohort(
+        uint256 _cohortId,
+        bytes32 _merkleRoot
+    ) public onlyCohortAdmin(_cohortId, msg.sender) {
+        cohortMap[_cohortId].merkleRoot = _merkleRoot;
+    }
 
     function makeProposal(
         uint256 _cohortId,
@@ -220,9 +247,7 @@ contract voteDemo is
 
         if (votes >= halfCohortCount) {
             _deleteChangeDefaultAdminMap(_newAdmin);
-            _revokeRole(DEFAULT_ADMIN_ROLE, currentAdmin);
-            _grantRole(DEFAULT_ADMIN_ROLE, _newAdmin);
-            currentAdmin = _newAdmin;
+            DEFAULT_ADMIN_ROLE = _newAdmin;
         }
     }
 
@@ -303,11 +328,9 @@ contract voteDemo is
     /**     
     @notice override needed by UUPS proxy
     */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override(AccessControlUpgradeable) returns (bool) {
-        return super.supportsInterface(interfaceId);
-    }
+    // function supportsInterface(bytes4 interfaceId) public view returns (bool) {
+    //     return super.supportsInterface(interfaceId);
+    // }
 
     //==================  Internal Functions    ==================//
 
@@ -331,5 +354,5 @@ contract voteDemo is
     */
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    ) internal override onlyRole(TECH_ADMIN) {}
 }

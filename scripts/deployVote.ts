@@ -67,7 +67,7 @@ async function main() {
 		"0x9c3e193EF09f8D4863131D0B12bAFA6792B611ac"
 	);
 
-	await sleep(20);
+	await sleep(5);
 
 	if (wrpVote.address == addresses.proxy) {
 		const args = [
