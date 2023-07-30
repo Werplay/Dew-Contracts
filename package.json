@@ -7,6 +7,7 @@
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"deploy:test:wrp": "PROD=false npx hardhat --network testnet run scripts/deployWrp.ts",
 		"deploy:test:vote": "PROD=false npx hardhat --network testnet run scripts/deployVote.ts",
+		"deploy:test:openVote": "PROD=false npx hardhat --network testnet run scripts/deployOpenVote.ts",
 		"deploy:prod:wrp": "PROD=true npx hardhat --network mainnet run scripts/deployWrp.ts",
 		"upgrade:test:wrp": "PROD=false npx hardhat --network testnet run scripts/upgradeTokenLogic.ts",
 		"upgrade:test:vote": "PROD=false npx hardhat --network testnet run scripts/upgradeVoteLogic.ts"
