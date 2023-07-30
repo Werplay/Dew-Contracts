@@ -1,40 +1,83 @@
 import { ethers, upgrades, run } from "hardhat";
 const { getContractAddress } = require("@ethersproject/address");
-import { JambroSale } from "../typechain-types";
+import { WrpVote } from "../typechain-types";
 import { configService } from "../config";
+import { Dew } from "../typechain-types";
 const hre = require("hardhat");
 const request = require("request");
 
 async function main() {
 	const addresses = await futureAddress();
 
-	const saleStartTime = parseInt((Date.now() / 1000 + 5 * 60).toString());
-
-	const JambroSale = await ethers.getContractFactory("JambroSale");
-	const jambroSale = (await upgrades.deployProxy(
-		JambroSale,
+	const WrpVote = await ethers.getContractFactory("wrpVote");
+	const wrpVote = (await upgrades.deployProxy(
+		WrpVote,
 		[
 			configService.getValue("CONTRACT_OWNER"),
-			configService.getValue("saleRoyaltyGetter"),
-			configService.getValue("saleRoyalty"),
-			saleStartTime,
-			configService.getValue("proxyAddress"),
+			configService.getValue("TOKEN_ADDRESS"),
 		],
 		{
 			initializer: "initialize",
 			kind: "uups",
 		}
-	)) as JambroSale;
-	await jambroSale.deployed();
-	console.log(" jambroSale Proxy deployed at : ", jambroSale.address);
+	)) as WrpVote;
+	await wrpVote.deployed();
+	console.log(" wrpVote Proxy deployed at : ", wrpVote.address);
 
-	await sleep(20);
+	const TokenContract = await ethers.getContractFactory("Dew");
+	const tokenContract = await TokenContract.attach(
+		configService.getValue("TOKEN_ADDRESS")
+	);
 
-	if (jambroSale.address == addresses.proxy) {
-		await verifyLogic(addresses.logic, []);
+	console.log(" Granting Role Token Admin to Vote Contract ");
+	await tokenContract.grantRole(tokenContract.TOKEN_ADMIN(), wrpVote.address);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		0,
+		"Red",
+		"0xCE60B14E47adDeafb2d77d564A204E215b52648a"
+	);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		1,
+		"Green",
+		"0xFb76e954a36e595291b9fbEDF8a195F0678BBbeC"
+	);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		2,
+		"Blue",
+		"0x3850aE6e3e6d581D8D687CC874672B61A9824a6f"
+	);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		3,
+		"Purple",
+		"0x965b73E6e4bE825b470b644709a2E70802878990"
+	);
+	await sleep(5);
+
+	await wrpVote.setupCohort(
+		4,
+		"Yellow",
+		"0x9c3e193EF09f8D4863131D0B12bAFA6792B611ac"
+	);
+
+	await sleep(5);
+
+	if (wrpVote.address == addresses.proxy) {
+		const args = [
+			configService.getValue("CONTRACT_OWNER"),
+			configService.getValue("TOKEN_ADDRESS"),
+		];
+		await verifyLogic(addresses.logic, args);
 		await verifyProxy(addresses.proxy);
 	} else {
-		await verifyProxy(jambroSale.address);
+		await verifyProxy(wrpVote.address);
 	}
 }
 

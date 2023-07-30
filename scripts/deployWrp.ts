@@ -1,36 +1,30 @@
 import { ethers, upgrades, run } from "hardhat";
 const { getContractAddress } = require("@ethersproject/address");
-import { Jambro } from "../typechain-types";
+import { Dew } from "../typechain-types";
 import { configService } from "../config";
 const hre = require("hardhat");
 const request = require("request");
 
-const MINTER = configService.getValue("MINTER");
-
 async function main() {
 	const addresses = await futureAddress();
+	console.log("predicted addresses : ", addresses);
 
-	const Jambro = await ethers.getContractFactory("Jambro");
-	const jambro = (await upgrades.deployProxy(
-		Jambro,
-		[configService.getValue("CONTRACT_OWNER")],
-		{
-			initializer: "initialize",
-			kind: "uups",
-		}
-	)) as Jambro;
-	await jambro.deployed();
-	console.log(" Jambro Proxy deployed at : ", jambro.address);
-
-	await jambro.grantRole(await jambro.MINTER_ROLE(), MINTER);
+	const args: any[] = [];
+	const WeRplay = await ethers.getContractFactory("Dew");
+	const weRplay = (await upgrades.deployProxy(WeRplay, {
+		initializer: "initialize",
+		kind: "uups",
+	})) as Dew;
+	await weRplay.deployed();
+	console.log(" Dew Proxy deployed at : ", weRplay.address);
 
 	await sleep(20);
 
-	if (jambro.address == addresses.proxy) {
-		await verifyLogic(addresses.logic, []);
+	if (weRplay.address == addresses.proxy) {
+		await verifyLogic(addresses.logic, args);
 		await verifyProxy(addresses.proxy);
 	} else {
-		await verifyProxy(jambro.address);
+		await verifyProxy(weRplay.address);
 	}
 }
 

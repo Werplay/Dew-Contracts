@@ -1,23 +1,24 @@
 import { ethers, upgrades, run, network } from "hardhat";
 const { getContractAddress } = require("@ethersproject/address");
-import { JambroSale } from "../typechain-types";
+import { WrpVote } from "../typechain-types";
 import { configService } from "../config";
+import { Dew } from "../typechain-types";
 const hre = require("hardhat");
 
-const proxyAddress = configService.getValue("proxySaleAddress");
-const proxyAdminPrivateKey = configService.getValue("proxyAdminPrivateKey");
-const ABI = require("../artifacts/contracts/Jambro.sol/Jambro.json");
+const proxyAddress = configService.getValue("VOTE_ADDRESS");
+const proxyAdminPrivateKey = configService.getValue("PRIVATE_KEY");
+const ABI = require("../artifacts/contracts/wrpVote.sol/wrpVote.json");
 async function main() {
-	const JambroSale = await ethers.getContractFactory("JambroSale");
-	const jambroSale = (await JambroSale.deploy()) as JambroSale;
-	await jambroSale.deployed();
-	console.log(" Jambro Logic deployed at : ", jambroSale.address);
+	const Vote = await ethers.getContractFactory("wrpVote");
+	const vote = (await Vote.deploy()) as WrpVote;
+	await vote.deployed();
+	console.log(" vote Logic deployed at : ", vote.address);
 
 	await sleep(20);
 
-	await verify(jambroSale.address, []);
+	await verify(vote.address, []);
 
-	await upgradeProxyToNewLogic(jambroSale.address);
+	await upgradeProxyToNewLogic(vote.address);
 }
 
 async function upgradeProxyToNewLogic(logic: string) {
@@ -33,10 +34,10 @@ async function upgradeProxyToNewLogic(logic: string) {
 		proxyAddress,
 		ABI["abi"],
 		wallet
-	) as JambroSale;
+	) as WrpVote;
 
 	const res = await contract.upgradeTo(logic);
-	console.log(res);
+	console.log("Proxy contract is now upgraded to new Logic");
 }
 
 async function verify(address: string, args: any[]) {

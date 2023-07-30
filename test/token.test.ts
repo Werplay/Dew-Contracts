@@ -1,59 +1,62 @@
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
-import { Jambro } from "../typechain-types";
+import { Dew } from "../typechain-types";
 import { Signer } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers, upgrades } from "hardhat";
 
-describe("Jambro", function () {
-	let jambro: Jambro;
+describe("Dew", function () {
+	let dew: Dew;
 	let owner: SignerWithAddress, otherAccount: SignerWithAddress;
 
 	before("Deployment and variables setup", async () => {
 		[owner, otherAccount] = await ethers.getSigners();
 
-		const Jambro = await ethers.getContractFactory("Jambro");
+		const Dew = await ethers.getContractFactory("Dew");
 
-		jambro = (await upgrades.deployProxy(Jambro, [owner.address], {
+		dew = (await upgrades.deployProxy(Dew, {
 			initializer: "initialize",
 			kind: "uups",
-		})) as Jambro;
+		})) as Dew;
 
-		await jambro.deployed();
+		await dew.deployed();
 	});
 
 	describe("Parameters Test", function () {
 		it("Should set the right owner", async function () {
 			expect(
-				await jambro.hasRole(await jambro.DEFAULT_ADMIN_ROLE(), owner.address)
+				await dew.hasRole(await dew.DEFAULT_ADMIN_ROLE(), owner.address)
 			).to.be.equal(true);
 		});
 
 		it("Symbol should be right", async function () {
-			expect(await jambro.symbol()).to.be.equal("JAMB");
+			expect(await dew.symbol()).to.be.equal("Dew");
 		});
 	});
 
 	describe("Mint Test", function () {
 		it("Total Supply should be 0", async function () {
-			expect(await jambro.totalSupply()).to.be.equal(0);
+			expect(await dew.totalSupply()).to.be.equal(0);
 		});
 
 		it("Reverts : Non Minter tries to mint", async function () {
 			await expect(
-				jambro.connect(otherAccount).safeMint(owner.address, "someURI")
+				dew.connect(otherAccount).mint(owner.address, (1 * 10) ^ 18)
 			).to.be.revertedWith(
-				`AccessControl: account 0x70997970c51812dc3a010c7d01b50e0d17dc79c8 is missing role 0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6`
+				`AccessControl: account ${otherAccount.address.toLowerCase()} is missing role ${await dew.TOKEN_ADMIN()}`
 			);
 		});
 
 		it("Minter Mints", async function () {
-			await jambro.connect(owner).safeMint(owner.address, "someURI");
+			await dew
+				.connect(owner)
+				.mint(owner.address, ethers.utils.parseEther("1"));
 		});
 
 		it("TotalSupply is 1", async function () {
-			expect(await jambro.totalSupply()).to.be.equal(1);
+			const totalSupply = ethers.utils.formatEther(await dew.totalSupply());
+			expect(totalSupply).to.be.equal("1.0");
 		});
 	});
 });
