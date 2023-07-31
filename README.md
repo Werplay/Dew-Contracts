@@ -6,7 +6,7 @@
 
 ### To Test
 
-- npx hardhat test test/deployJambro.ts
+- npx hardhat test
 
 ### To Deploy
 
